@@ -32,13 +32,14 @@ ggplot(aes(x=POSITION,y=SALARY),data=dat.full)+
       geom_boxplot(width=0.1, fill = "tan1")
 
 #looking at salary by MP
-dat.full['MP_above_avg'] <- ifelse(dat.full$MP > mean(dat.full$MP),1,0)
-ggplot(aes(x=as.factor(MP_above_avg),y=SALARY),data=dat.full)+
+dat_sal <- dat_sal[!(is.na(dat_sal$SALARY)),]
+dat_sal['MP_above_avg'] <- ifelse(dat_sal$MP > mean(dat_sal$MP),1,0)
+ggplot(aes(x=as.factor(MP_above_avg),y=SALARY),data=dat_sal)+
   geom_violin(trim=FALSE)+
   ggtitle("Salary Range for Below vs Above Average Minute Played")+
   geom_boxplot(width=0.1, fill = "lightskyblue3")
 
-t.test(SALARY~MP_above_avg, data=dat.full) ##P value showed significant differences
+t.test(SALARY~MP_above_avg, data=dat_sal) ##P value showed significant differences
 
 
 #adding some variables & one hot encoding
@@ -90,10 +91,11 @@ summary(offense)
 
 #######PROPENSITY SCORE BASED ON MINUTE PLAY
 # is there differences in salary based on minute play?
+summary(dat_sal$MP)
+cor(dat_sal$MP, dat_sal$SALARY)
+table(dat_sal$MP_above_avg)
 
-summary(dat.full$MP)
-cor(dat.full$MP, dat.full$SALARY)
-table(dat.full$MP_above_avg)
 
-
+#####What is the effect of minute play in increasing the salary (use interaction term)
+#vars that affect salary so far = PS/G, FG, FGA, 2P, FT
 
