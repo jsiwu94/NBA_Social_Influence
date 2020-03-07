@@ -6,96 +6,198 @@ library(tidyr)
 library(ggplot2)
 library(dummies)
 library(faraway)
+library(Hmisc)
+library(MatchIt)
+library("psych")
+library(ggalt)
+library(ggExtra)
+library("coefplot")
 
 #reading the dat
 dat <- read.csv("~/Documents/NBA_Social_Influence/final_master_data_file.csv")
 head(dat)
 
-#getting rid of the NA rows
-dat.full <- na.omit(dat)
-
 
 #############Initial VISUALIZATION#############
+
+#SALARY VS MP
+dat_sal <- dat[!(is.na(dat_sal$SALARY)) & (dat_sal$POSITION != 'PF-C'),]
+dat_sal['MP_above_avg'] <- ifelse(dat_sal$MP > mean(dat_sal$MP),1,0)
+dat_sal['salary_norm'] <- (dat_sal$SALARY - mean(dat_sal$SALARY))/sd(dat_sal$SALARY)
+dim(dat_sal)
+
+ggplot(aes(x=as.factor(MP_above_avg),y=SALARY, fill = as.factor(MP_above_avg)),data=dat_sal)+
+  geom_violin(trim=FALSE)+
+  ggtitle("Salary Range for Below vs Above Average Minute Played")+
+  geom_boxplot(width=0.1, fill = "white") 
+
+t.test(SALARY~MP_above_avg, data=dat_sal) ##P value showed significant differences
+
+#effect of MP of salary = 34% R squared
+sal <- lm(log(SALARY)~MP,data=dat_sal)
+summary(sal)
+exp(1)**coef(sal)
+
+
+#looking at salary by position
+ggplot(aes(x=POSITION,y=SALARY, fill = POSITION),data=dat_sal)+
+  geom_violin(trim=FALSE)+
+  ggtitle("Salary Range Based on Position")+
+  geom_boxplot(width=0.1, fill = "white")
+
+##Omitting the NA's
+dat.full <- na.omit(dat_sal)
+
 #looking at the dist
 dat.full %>%
   keep(is.numeric) %>% 
   gather() %>% 
   ggplot(aes(value)) +
   facet_wrap(~ key, scales = "free") +
-  geom_histogram()
-
-
-#looking at salary by position
-ggplot(aes(x=POSITION,y=SALARY),data=dat.full)+
-      geom_violin(trim=FALSE)+
-  ggtitle("Salary Range Based on Position")+
-      geom_boxplot(width=0.1, fill = "tan1")
-
-#looking at salary by MP
-dat_sal <- dat_sal[!(is.na(dat_sal$SALARY)),]
-dat_sal['MP_above_avg'] <- ifelse(dat_sal$MP > mean(dat_sal$MP),1,0)
-ggplot(aes(x=as.factor(MP_above_avg),y=SALARY),data=dat_sal)+
-  geom_violin(trim=FALSE)+
-  ggtitle("Salary Range for Below vs Above Average Minute Played")+
-  geom_boxplot(width=0.1, fill = "lightskyblue3")
-
-t.test(SALARY~MP_above_avg, data=dat_sal) ##P value showed significant differences
-
+  geom_density(fill="lightskyblue3")
 
 #adding some variables & one hot encoding
-filter_df <- select(dat.full, -c(PLAYER,TEAM,Rk, pageview_sum,twitter_fav_group))
+filter_df <- select(dat.full, -c(PLAYER,TEAM,Rk, pageview_sum))
 filter_df <- dummy.data.frame(filter_df, sep = '_')
 
 head(filter_df)
 
 #scaling var: salary, twitter, pageview
-filter_df$SALARY <- (dat.full$SALARY-mean(dat.full$SALARY))/sd(dat.full$SALARY)
-filter_df$TWITTER_FAVORITE_COUNT <- log(dat.full$TWITTER_FAVORITE_COUNT+1)
-filter_df$TWITTER_RETWEET_COUNT <- log(dat.full$TWITTER_RETWEET_COUNT+1)
-filter_df$pageview_mean <- log(dat.full$pageview_mean)
+
+filter_df$TWITTER_FAVORITE_COUNT <- log(filter_df$TWITTER_FAVORITE_COUNT+1)
+filter_df$TWITTER_RETWEET_COUNT <- log(filter_df$TWITTER_RETWEET_COUNT+1)
+filter_df$pageview_mean <- log(filter_df$pageview_mean)
 
 
 options("scipen"=100, "digits"=4)
-##Overall Trash Model
-ols <- lm(WINS~.,data=filter_df)
-summary(ols)
-
-col <- vif(ols)
-col[col > 10]
 
 ###########OLS MODELS : DO RESIDUAL PLOTS FOR EACH MODELS
 ##Social Media Model
 soc_med <- lm(WINS~TWITTER_FAVORITE_COUNT+TWITTER_RETWEET_COUNT+pageview_mean,data=filter_df)
 summary(soc_med)
 vif(soc_med)
+Salary <- lm(WINS~SALARY,data=dat_sal)
+summary(Salary)
+ggplot(aes(x=.fitted,y=.resid),data=soc_med) + 
+  geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
+  ggtitle("Residual Plot Social Media Model") +
+  labs(x="Fitter Values",y="Residuals")
+
 
 ##Salary Model
-Salary <- lm(WINS~SALARY,data=filter_df)
+Salary_norm <- lm(WINS~salary_norm,data=dat_sal)
+summary(Salary_norm)
+
+Salary <- lm(WINS~SALARY,data=dat_sal)
 summary(Salary)
+ggplot(aes(x=.fitted,y=.resid),data=Salary) + 
+  geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
+  ggtitle("Residual Plot Salary Model") +
+  labs(x="Fitter Values",y="Residuals")
 
 ##Time Model
-Minute <- lm(WINS~MP,data=filter_df)
+Minute <- lm(WINS~MP,data=dat_sal)
 summary(Minute)
+ggplot(aes(x=.fitted,y=.resid),data=Minute) + 
+  geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
+  ggtitle("Residual Plot Minute Model") +
+  labs(x="Fitter Values",y="Residuals")
+
 ######Do the MP vs WINS by Position plot--> use encircle
+selected <- dat_sal[dat_sal$MP > 30 & 
+                            dat_sal$WINS > 15,]
+
+ggplot(dat_sal, aes(x=MP, y=WINS)) + 
+  geom_point(aes(col=POSITION, size=SALARY)) +   # draw points
+  scale_color_brewer(type='qual')+
+  geom_smooth() + 
+  ylim(0,25)+
+geom_encircle(aes(x=MP, y=WINS), 
+              data=selected, 
+              color="red", 
+              size=2, 
+              expand=0.05)+
+  labs(subtitle="by Salary and Position", 
+       y="WINS", 
+       x="MP", 
+       title="Wins vs Minutes Played Comparison") + 
+  theme_gray() 
+  
 
 ##Defense Model
-defense_df <- filter_df[,c("DRB","STL","BLK","WINS")]
+defense_df <- dat_sal[,c("DRB","STL","BLK","WINS")]
 defense <- lm(WINS~.,data=defense_df)
 summary(defense)
+coefplot(defense)
+ggplot(aes(x=.fitted,y=.resid),data=defense) + 
+  geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
+  ggtitle("Residual Plot Defense Model") +
+  labs(x="Fitter Values",y="Residuals")
 
 ##Offense Model
-offense_df <- filter_df[,c("eFG.","FT.","ORB","AST","PS.G","WINS")]
+offense_df <- dat_sal[,c("eFG.","FT.","ORB","AST","PS.G","WINS")]
 offense <- lm(WINS~.,data=offense_df)
 summary(offense)
+coefplot(offense)
+ggplot(aes(x=.fitted,y=.resid),data=offense) + 
+          geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
+          ggtitle("Residual Plot Offense Model") +
+          labs(x="Fitter Values",y="Residuals")
 
-
-#######PROPENSITY SCORE BASED ON MINUTE PLAY
-# is there differences in salary based on minute play?
+###Interaction Terms
+##Putting it all together = Estimating Wins based on Salary and Minute Play
 summary(dat_sal$MP)
 cor(dat_sal$MP, dat_sal$SALARY)
 table(dat_sal$MP_above_avg)
 
+sal1 <- lm(WINS~salary_norm*MP_above_avg,data=dat_sal)
+summary(sal1)
 
-#####What is the effect of minute play in increasing the salary (use interaction term)
-#vars that affect salary so far = PS/G, FG, FGA, 2P, FT
+
+#######PROPENSITY SCORE BASED ON MINUTE PLAY
+# is there differences in salary based on minute play?
+df <- select(dat_sal, -c(pageview_mean,TWITTER_FAVORITE_COUNT,TWITTER_RETWEET_COUNT))
+mean_comp_before <- as.data.frame(
+                      df %>%
+                      keep(is.numeric) %>% 
+                      group_by(MP_above_avg) %>%
+                      summarise_all(funs(mean(., na.rm = T)))
+                    )
+
+describeBy(df[,sapply(df, is.numeric)],
+           df[,sapply(df, is.numeric)]$MP_above_avg)
+
+
+m_ps <- glm(MP_above_avg ~ PS.G+DRB+STL+PIE+AGE, ##Best combination to prod lowest aic
+            family = binomial(), data = df)
+summary(m_ps) 
+
+prs_df <- data.frame(pr_score = predict(m_ps, type = "response"),
+                     MP_above_avg = m_ps$model$MP_above_avg)
+head(prs_df)
+
+labs <- paste("Minutes Played", c("Above Avg", "Below Avg"))
+prs_df %>%
+  mutate(MP_above_avg = ifelse(MP_above_avg == 1, labs[1], labs[2])) %>%
+  ggplot(aes(x = pr_score)) +
+  geom_histogram(color = "white") +
+  facet_wrap(~MP_above_avg) +
+  xlab("Probability of going to Have Minutes Played Above Average") +
+  theme_bw()
+#checking for NA
+sapply(df, function(x) sum(is.na(x)))
+
+mod_match <- matchit(MP_above_avg ~ PS.G+DRB+STL+PIE+AGE,
+                     method = "nearest", data = df)
+
+# We can get some information about how successful the matching was using summary(mod_match) and plot(mod_match)
+
+summary(mod_match)
+plot(mod_match)
+
+dta_m <- match.data(mod_match)
+dim(dta_m)
+
+t.test(SALARY~MP_above_avg, data=dta_m) ##P value showed significant differences
+
 
