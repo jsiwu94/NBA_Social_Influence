@@ -76,24 +76,34 @@ options("scipen"=100, "digits"=4)
 soc_med <- lm(WINS~TWITTER_FAVORITE_COUNT+TWITTER_RETWEET_COUNT+pageview_mean,data=filter_df)
 summary(soc_med)
 vif(soc_med)
-Salary <- lm(WINS~SALARY,data=dat_sal)
-summary(Salary)
 ggplot(aes(x=.fitted,y=.resid),data=soc_med) + 
   geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
   ggtitle("Residual Plot Social Media Model") +
-  labs(x="Fitter Values",y="Residuals")
+  labs(x="Fitted Values",y="Residuals")
 
-
-##Salary Model
-Salary_norm <- lm(WINS~salary_norm,data=dat_sal)
-summary(Salary_norm)
-
+##Salary
 Salary <- lm(WINS~SALARY,data=dat_sal)
 summary(Salary)
 ggplot(aes(x=.fitted,y=.resid),data=Salary) + 
   geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
   ggtitle("Residual Plot Salary Model") +
-  labs(x="Fitter Values",y="Residuals")
+  labs(x="Fitted Values",y="Residuals")
+
+Salary_norm <- lm(WINS~salary_norm,data=dat_sal)
+summary(Salary_norm)
+ggplot(aes(x=.fitted,y=.resid),data=Salary_norm) + 
+  geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
+  ggtitle("Residual Plot Salary Model") +
+  labs(x="Fitted Values",y="Residuals")
+
+
+theme_set(theme_bw())  # pre-set the bw theme.
+g <- ggplot(dat_sal, aes(SALARY, WINS)) + 
+  geom_point() + 
+  geom_smooth(method="lm")+
+  ggtitle("Salary vs Wins")
+ggMarginal(g, type = "density", fill="steelblue")
+  
 
 ##Time Model
 Minute <- lm(WINS~MP,data=dat_sal)
@@ -101,7 +111,14 @@ summary(Minute)
 ggplot(aes(x=.fitted,y=.resid),data=Minute) + 
   geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
   ggtitle("Residual Plot Minute Model") +
-  labs(x="Fitter Values",y="Residuals")
+  labs(x="Fitted Values",y="Residuals")
+
+g <- ggplot(dat_sal, aes(MP, WINS)) + 
+  geom_point() + 
+  geom_smooth(method="lm")+
+  ggtitle("Minutes Played vs Wins")
+ggMarginal(g, type = "density", fill="steelblue")
+
 
 ######Do the MP vs WINS by Position plot--> use encircle
 selected <- dat_sal[dat_sal$MP > 30 & 
@@ -132,7 +149,9 @@ coefplot(defense)
 ggplot(aes(x=.fitted,y=.resid),data=defense) + 
   geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
   ggtitle("Residual Plot Defense Model") +
-  labs(x="Fitter Values",y="Residuals")
+  labs(x="Fitted Values",y="Residuals")
+
+
 
 ##Offense Model
 offense_df <- dat_sal[,c("eFG.","FT.","ORB","AST","PS.G","WINS")]
@@ -142,7 +161,7 @@ coefplot(offense)
 ggplot(aes(x=.fitted,y=.resid),data=offense) + 
           geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
           ggtitle("Residual Plot Offense Model") +
-          labs(x="Fitter Values",y="Residuals")
+          labs(x="Fitted Values",y="Residuals")
 
 ###Interaction Terms
 ##Putting it all together = Estimating Wins based on Salary and Minute Play
@@ -157,12 +176,24 @@ summary(sal1)
 #######PROPENSITY SCORE BASED ON MINUTE PLAY
 # is there differences in salary based on minute play?
 df <- select(dat_sal, -c(pageview_mean,TWITTER_FAVORITE_COUNT,TWITTER_RETWEET_COUNT))
+df <- na.omit(df)
+num_df <- df[,sapply(df, is.numeric)]
+num_df <- select(num_df, -c(Rk,salary_norm))
 mean_comp_before <- as.data.frame(
-                      df %>%
+                      num_df %>%
                       keep(is.numeric) %>% 
                       group_by(MP_above_avg) %>%
                       summarise_all(funs(mean(., na.rm = T)))
                     )
+
+test <- c(colnames(mean_comp_before[,2:35]))
+p <- sapply(test, function(v) {
+  t.test(num_df[, v] ~ num_df$MP_above_avg)$p.value
+})
+
+p[p <= 0.05]
+
+as.vector(colnames(df[3:38]))
 
 describeBy(df[,sapply(df, is.numeric)],
            df[,sapply(df, is.numeric)]$MP_above_avg)
