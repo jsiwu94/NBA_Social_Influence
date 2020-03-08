@@ -12,6 +12,10 @@ library("psych")
 library(ggalt)
 library(ggExtra)
 library("coefplot")
+library(car)
+library("jtools")
+library("huxtable")
+library(MASS)
 
 #reading the dat
 dat <- read.csv("~/Documents/NBA_Social_Influence/final_master_data_file.csv")
@@ -38,6 +42,8 @@ sal <- lm(log(SALARY)~MP,data=dat_sal)
 summary(sal)
 exp(1)**coef(sal)
 
+#how much higher is salary for players above avg in MP vs Lower avg? ~ 158%
+(10656070-4136981)/4136981 
 
 #looking at salary by position
 ggplot(aes(x=POSITION,y=SALARY, fill = POSITION),data=dat_sal)+
@@ -62,18 +68,14 @@ filter_df <- dummy.data.frame(filter_df, sep = '_')
 
 head(filter_df)
 
-#scaling var: salary, twitter, pageview
-
-filter_df$TWITTER_FAVORITE_COUNT <- log(filter_df$TWITTER_FAVORITE_COUNT+1)
-filter_df$TWITTER_RETWEET_COUNT <- log(filter_df$TWITTER_RETWEET_COUNT+1)
-filter_df$pageview_mean <- log(filter_df$pageview_mean)
-
 
 options("scipen"=100, "digits"=4)
 
 ###########OLS MODELS : DO RESIDUAL PLOTS FOR EACH MODELS
 ##Social Media Model
-soc_med <- lm(WINS~TWITTER_FAVORITE_COUNT+TWITTER_RETWEET_COUNT+pageview_mean,data=filter_df)
+soc_med <- lm(WINS~log(TWITTER_FAVORITE_COUNT+1)+
+                log(TWITTER_RETWEET_COUNT+1)+
+                log(pageview_mean),data=filter_df)
 summary(soc_med)
 vif(soc_med)
 ggplot(aes(x=.fitted,y=.resid),data=soc_med) + 
@@ -88,6 +90,7 @@ ggplot(aes(x=.fitted,y=.resid),data=Salary) +
   geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
   ggtitle("Residual Plot Salary Model") +
   labs(x="Fitted Values",y="Residuals")
+
 
 Salary_norm <- lm(WINS~salary_norm,data=dat_sal)
 summary(Salary_norm)
@@ -118,6 +121,20 @@ g <- ggplot(dat_sal, aes(MP, WINS)) +
   geom_smooth(method="lm")+
   ggtitle("Minutes Played vs Wins")
 ggMarginal(g, type = "density", fill="steelblue")
+
+#test for heteroskedasticity
+lmtest::bptest(Minute)
+
+#weighted OLS for Time MOdel
+min.weights <- 1 / lm(abs(Minute$residuals) ~ Minute$fitted.values)$fitted.values^2
+Minute.lmw <- rlm(WINS ~ MP, 
+              data = dat_sal, 
+              weights = min.weights)
+summary(Minute.lmw)
+ggplot(aes(x=.fitted,y=.resid),data=Minute.lmw) + 
+  geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
+  ggtitle("Residual Plot Minute Weighted Model") +
+  labs(x="Fitted Values",y="Residuals")
 
 
 ######Do the MP vs WINS by Position plot--> use encircle
@@ -150,6 +167,7 @@ ggplot(aes(x=.fitted,y=.resid),data=defense) +
   geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
   ggtitle("Residual Plot Defense Model") +
   labs(x="Fitted Values",y="Residuals")
+crPlots(defense)
 
 
 
@@ -162,6 +180,8 @@ ggplot(aes(x=.fitted,y=.resid),data=offense) +
           geom_point(col="steelblue")+ geom_hline(yintercept = 0) +
           ggtitle("Residual Plot Offense Model") +
           labs(x="Fitted Values",y="Residuals")
+crPlots(offense)
+
 
 ###Interaction Terms
 ##Putting it all together = Estimating Wins based on Salary and Minute Play
@@ -169,9 +189,18 @@ summary(dat_sal$MP)
 cor(dat_sal$MP, dat_sal$SALARY)
 table(dat_sal$MP_above_avg)
 
-sal1 <- lm(WINS~salary_norm*MP_above_avg,data=dat_sal)
-summary(sal1)
+salary_MP <- lm(WINS~salary_norm*MP_above_avg,data=dat_sal)
+summary(salary_MP)
 
+
+####MODELS SUMMARY
+
+export_summs(Minute, Salary_norm, defense,offense,salary_MP
+             , scale = TRUE)
+
+
+plot_summs(Minute, Salary_norm, defense,offense,salary_MP
+           , scale = TRUE)
 
 #######PROPENSITY SCORE BASED ON MINUTE PLAY
 # is there differences in salary based on minute play?
@@ -191,9 +220,6 @@ p <- sapply(test, function(v) {
   t.test(num_df[, v] ~ num_df$MP_above_avg)$p.value
 })
 
-p[p <= 0.05]
-
-as.vector(colnames(df[3:38]))
 
 describeBy(df[,sapply(df, is.numeric)],
            df[,sapply(df, is.numeric)]$MP_above_avg)
@@ -230,5 +256,10 @@ dta_m <- match.data(mod_match)
 dim(dta_m)
 
 t.test(SALARY~MP_above_avg, data=dta_m) ##P value showed significant differences
+ggplot(aes(x=as.factor(MP_above_avg),y=SALARY, fill = as.factor(MP_above_avg)),data=dta_m)+
+  geom_violin(trim=FALSE)+
+  ggtitle("Salary Range for Below vs Above Average Minute Played")+
+  geom_boxplot(width=0.1, fill = "white") 
 
+(12141449-4068610)/4068610
 
