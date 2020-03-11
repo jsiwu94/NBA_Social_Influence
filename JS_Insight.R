@@ -62,20 +62,19 @@ dat.full %>%
   facet_wrap(~ key, scales = "free") +
   geom_density(fill="lightskyblue3")
 
-#adding some variables & one hot encoding
-filter_df <- select(dat.full, -c(PLAYER,TEAM,Rk, pageview_sum))
-filter_df <- dummy.data.frame(filter_df, sep = '_')
+##Adding the log var for social media
 
-head(filter_df)
-
+dat.full$TWITTER_FAVORITE_COUNT_log <- log(dat.full$TWITTER_FAVORITE_COUNT+1)
+dat.full$TWITTER_RETWEET_COUNT_log <-log(dat.full$TWITTER_RETWEET_COUNT+1)
+dat.full$pageview_mean_log <- log(dat.full$pageview_mean)
 
 options("scipen"=100, "digits"=4)
 
 ###########OLS MODELS : DO RESIDUAL PLOTS FOR EACH MODELS
 ##Social Media Model
-soc_med <- lm(WINS~log(TWITTER_FAVORITE_COUNT+1)+
-                log(TWITTER_RETWEET_COUNT+1)+
-                log(pageview_mean),data=filter_df)
+soc_med <- lm(WINS~TWITTER_FAVORITE_COUNT_log+
+                TWITTER_RETWEET_COUNT_log+
+                pageview_mean_log,data=dat.full)
 summary(soc_med)
 vif(soc_med)
 ggplot(aes(x=.fitted,y=.resid),data=soc_med) + 
@@ -195,12 +194,26 @@ summary(salary_MP)
 
 ####MODELS SUMMARY
 
-export_summs(Minute, Salary_norm, defense,offense,salary_MP
-             , scale = TRUE)
+export_summs(soc_med, Salary_norm, Minute, salary_MP, defense, offense
+             ,scale = TRUE)
 
 
-plot_summs(Minute, Salary_norm, defense,offense,salary_MP
+plot_summs(soc_med, Salary_norm, Minute, salary_MP, defense,offense
            , scale = TRUE)
+
+plot_summs(soc_med
+           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+plot_summs(Salary_norm
+           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+plot_summs(Minute
+           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+plot_summs(salary_MP
+           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+plot_summs(defense
+           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+plot_summs(offense
+           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+
 
 #######PROPENSITY SCORE BASED ON MINUTE PLAY
 # is there differences in salary based on minute play?
@@ -248,7 +261,6 @@ mod_match <- matchit(MP_above_avg ~ PS.G+DRB+STL+PIE+AGE,
                      method = "nearest", data = df)
 
 # We can get some information about how successful the matching was using summary(mod_match) and plot(mod_match)
-
 summary(mod_match)
 plot(mod_match)
 
