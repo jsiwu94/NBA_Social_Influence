@@ -100,7 +100,7 @@ ggplot(aes(x=.fitted,y=.resid),data=Salary_norm) +
 
 
 theme_set(theme_bw())  # pre-set the bw theme.
-g <- ggplot(dat_sal, aes(SALARY, WINS)) + 
+g <- ggplot(dat_sal, aes(salary_norm, WINS)) + 
   geom_point() + 
   geom_smooth(method="lm")+
   ggtitle("Salary vs Wins")
@@ -202,17 +202,17 @@ plot_summs(soc_med, Salary_norm, Minute, salary_MP, defense,offense
            , scale = TRUE)
 
 plot_summs(soc_med
-           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+           , scale = FALSE, plot.distributions = TRUE, inner_ci_level = .9)
 plot_summs(Salary_norm
-           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+           , scale = FALSE, plot.distributions = TRUE, inner_ci_level = .9)
 plot_summs(Minute
-           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+           , scale = FALSE, plot.distributions = TRUE, inner_ci_level = .9)
 plot_summs(salary_MP
-           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+           , scale = FALSE, plot.distributions = TRUE, inner_ci_level = .9)
 plot_summs(defense
-           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+           , scale = FALSE, plot.distributions = TRUE, inner_ci_level = .9)
 plot_summs(offense
-           , scale = TRUE, plot.distributions = TRUE, inner_ci_level = .9)
+           , scale = FALSE, plot.distributions = TRUE, inner_ci_level = .9)
 
 
 #######PROPENSITY SCORE BASED ON MINUTE PLAY
